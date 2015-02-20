@@ -1,0 +1,142 @@
+# Biomovement Data and Exercise Quality Prediction
+## pmccullo February 2015
+### Coursera Reproducible Machine Learning
+========================================================
+
+**Synopsis**
+
+This project seeks to build a prediciton model for how well exercises are 
+performed based on data from http://groupware.les.inf.puc-rio.br/har
+
+This project uses the Caret package in R to perform machine learning.
+
+**Data Processing**
+
+Load packages to be used:
+
+
+```r
+ library(caret); library(RWeka)
+ set.seed(1000)
+```
+
+*Download and Load Data*
+
+
+```r
+  filename <- c("./pml-training.csv")
+  url <- c("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv")
+  download.file(url,destfile = filename, method = "curl")
+  originaldata <- read.csv(filename)
+
+  filename <- c("./pml-testing.csv")
+  url <- c("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv")
+  download.file(url,destfile = filename, method = "curl")
+  testingdata <- read.csv(filename)
+```
+
+**Exploratory Analysis**
+
+The data provided is a very large dataset:
+
+
+```r
+ncol(originaldata)
+```
+
+```
+## [1] 160
+```
+
+```r
+nrow(originaldata)
+```
+
+```
+## [1] 19622
+```
+
+```r
+ncol(originaldata)*nrow(originaldata)
+```
+
+```
+## [1] 3139520
+```
+
+There are 5 classes of performance:
+- Class A = well executed
+- Class B = throwing the elbows to the front
+- Class C = lifting dumbbell halfway
+- Class D = lowering dummbbell halfwway
+- Class E = throwing hips to the front
+
+There are 4 sensors and 37 measurements per sensor:
+- Belt sensor is located at the belt buckle (col 8-45)
+- Arm sensor is located on upper arm (right above the elbow) - (col 46-83)
+- Dumbbell sensor is located on the dumbbell (col 84-121)
+- Forearm sensor is located near the wrist (col 122-159)
+
+There are a number of columns that the researchers have added calculations into
+that either show up at blanks or as NAs for the majority of the entries. This 
+analysis will ignore those columns.
+
+
+```r
+calccol <- c(12:36,50:59,69:83,87:101,103:112,125:139,141:150)
+trimdata <- originaldata[,-calccol]
+```
+
+To trim that list down, we will use the nearZeroVar function to identify variables
+that we can ignore. This removed 1 column.
+
+
+```r
+  nsv <- nearZeroVar(trimdata, saveMetrics = FALSE)
+  trimdata2 <- trimdata[,-nsv]
+```
+
+Taking out the label columns to only include predictors and outcome. This step
+removes the lable columns (timestamps and similar information).
+
+
+```r
+  usedata <- trimdata2[,-c(1:6)]
+```
+
+I decided to attempt a tree based analysis as I believe that it would provide a
+potentially quick way of providing feedback when errors occur in the movement.
+
+Using a 6 fold cross validation methodology, as a way to both protect against
+overfitting a single set of data as well as to provide insight into the potential
+out of sample error rate. The 6 fold approach was chosen to balance the time and
+the value add of additional sampling.
+
+
+```r
+fitControl <- trainControl(method = "cv", number = 6)
+modfit <- train(classe ~ ., data = usedata, method = "LMT",
+                trControl = fitControl)
+modfit$resample
+```
+
+```
+##    Accuracy     Kappa Resample
+## 1 0.9850199 0.9810518    Fold1
+## 2 0.9825741 0.9779581    Fold2
+## 3 0.9837920 0.9794993    Fold5
+## 4 0.9837920 0.9795023    Fold4
+## 5 0.9831804 0.9787272    Fold3
+## 6 0.9831804 0.9787270    Fold6
+```
+
+The accuracy rates all exceed 98%. This indicates that for this sample, this model
+is fairly accurate. My expectation is that the out of sample rate for similarily 
+executed data will be exceed 90%. I believe that this model will 99% of the time
+guess greater than 14 of the 20 test cases (assuming they use the similar 
+experiment structure).
+
+However, this exercise was extremely regulated compared to normal weight lifting. 
+The weight involved was on the order or 10x smaller than one would anticipate 
+using. If this system was implemented outside of the lab, I would expect the accuracy
+to drop to closer to 50% with a margin of +/- 25%. 
